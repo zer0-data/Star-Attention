@@ -183,8 +183,17 @@ def run_cell(
                 "length": sample.get("length", -1),
             }) + "\n")
 
-    score = metric_fn(preds, refs)
-    n_null = sum(1 for p in preds if len(p) == 0)
+    # Some RULER tasks (e.g. cwe) emit samples with outputs=[]; skip them.
+    filtered = [(p, r) for p, r in zip(preds, refs) if r]
+    n_skipped = len(preds) - len(filtered)
+    if n_skipped:
+        print(f"    [warn] skipping {n_skipped} sample(s) with empty refs")
+    if not filtered:
+        print(f"    [warn] no scorable samples; skipping cell")
+        return
+    preds_s, refs_s = zip(*filtered)
+    score = metric_fn(list(preds_s), list(refs_s))
+    n_null = sum(1 for p in preds_s if len(p) == 0)
     print(
         f"    === seq={seq_length}/{task}: "
         f"score={score:.2f} ({n_null} nulls / {len(preds)}) ==="
