@@ -7,93 +7,9 @@ The method operates in two phases:
 1. **Phase 1 - Context Encoding**: The context tokens are processed using blockwise-local attention. Each block is augmented with the top-scoring contiguous chunks from earlier blocks (selected via TF-IDF or BM25), providing global semantic hints while preserving parallelism.
 2. **Phase 2 - Query Processing and Token Generation**: The query and response tokens attend to all prior cached tokens through sequence-global attention (unchanged).
 
-Star Attention **improves the inference time by up to 11x** while **preserving 97-100% of accuracy**. The method is **compatible with most Transformer-based LLMs trained with global attention, operating seamlessly out-of-the-box without additional training/finetuning.** Furthermore, Star Attention is **orthogonal to other optimization methods**, including Flash Attention and KV cache compression techniques, allowing for potential combined enhancements.
+The method is **compatible with most Transformer-based LLMs trained with global attention, operating seamlessly out-of-the-box without additional training/finetuning.** Furthermore, it is **orthogonal to other optimization methods**, including Flash Attention and KV cache compression techniques, allowing for potential combined enhancements.
 
 This codebase contains the implementation of Star Attention in PyTorch using the [HuggingFace Transformers](https://github.com/huggingface/transformers) library, along with the code for launching inference with Star Attention on two benchmarks: RULER and BABILong.
-
-<div align="center">
-  <table>
-      <thead>
-          <tr>
-              <th rowspan="2" style="text-align: center">Model</th>
-              <th rowspan="2" style="text-align: center">Seq. Len.<br>(K)</th>
-              <th rowspan="2" style="text-align: center">Block Size<br>(K)</th>
-              <th rowspan="2" style="text-align: center">Ring-Attn<br>Acc. (%)</th>
-              <th colspan="2" style="text-align: center">Star-Attn</th>
-          </tr>
-          <tr>
-              <th style="text-align: center">Δ Acc.</th>
-              <th style="text-align: center">Δ Speedup</th>
-          </tr>
-      </thead>
-      <tbody>
-          <tr>
-              <td rowspan="4">meta-llama<br>Llama3.1-8B-Instruct</td>
-              <td style="text-align: center">16</td>
-              <td style="text-align: center">4</td>
-              <td style="text-align: center">92.22</td>
-              <td style="text-align: center">-0.94%</td>
-              <td style="text-align: center">1.1x</td>
-          </tr>
-          <tr>
-              <td style="text-align: center">32</td>
-              <td style="text-align: center">8</td>
-              <td style="text-align: center">87.53</td>
-              <td style="text-align: center">+1.17%</td>
-              <td style="text-align: center">1.2x</td>
-          </tr>
-          <tr>
-              <td style="text-align: center">64</td>
-              <td style="text-align: center">16</td>
-              <td style="text-align: center">84.79</td>
-              <td style="text-align: center">-1.42%</td>
-              <td style="text-align: center">1.8x</td>
-          </tr>
-          <tr>
-              <td style="text-align: center">128</td>
-              <td style="text-align: center">32</td>
-              <td style="text-align: center">76.31</td>
-              <td style="text-align: center">-1.90%</td>
-              <td style="text-align: center">2.7x</td>
-          </tr>
-          <tr>
-              <td rowspan="3">meta-llama<br>Llama-3.1-70B-Instruct</td>
-              <td style="text-align: center">16</td>
-              <td style="text-align: center">4</td>
-              <td style="text-align: center">95.09</td>
-              <td style="text-align: center">-2.71%</td>
-              <td style="text-align: center">1.7x</td>
-          </tr>
-          <tr>
-              <td style="text-align: center">32</td>
-              <td style="text-align: center">8</td>
-              <td style="text-align: center">94.61</td>
-              <td style="text-align: center">-2.55%</td>
-              <td style="text-align: center">2.0x</td>
-          </tr>
-          <tr>
-              <td style="text-align: center">64</td>
-              <td style="text-align: center">16</td>
-              <td style="text-align: center">88.54</td>
-              <td style="text-align: center">-1.44%</td>
-              <td style="text-align: center">4.7x</td>
-          </tr>
-      </tbody>
-  </table>
-  <p align="justify">
-    <b>Table 1:</b> Accuracy and relative inference speedup of Star Attention compared to Ring Attention on RULER across sequence lengths from 16K to 128K. Accuracy is reported as the absolute difference from Ring Attention and speedup reflects relative improvements in inference efficiency. Star Attention significantly accelerates inference with minimal accuracy loss.
-  </p>
-</div>
-<br>
-<div align="center">
-  <img
-    src="images/star_attn_acc_ruler_babilong.png"
-    alt="star attention accuracy on ruler and babilong"
-  />
-  <p align="justify">
-    <b>Figure 1:</b> Accuracy comparison of Star Attention and Global Attention on RULER and BABILong from 16K to 128K sequence lengths using various models. All runs use a block and anchor block size set to one-quarter of the total sequence length. Star Attention maintains 97-100% of the accuracy of global attention, and in some cases, even outperform it.
-  </p>
-</div>
 
 ## Table of Contents
 1. [Setup Instructions](#setup-instructions)
@@ -299,14 +215,6 @@ Given a system with $H$ hosts and an input sample with context $c$ followed by q
   - After processing, each host stores **only** $c_i$'s KV cache — all summary KV states are discarded (unless `--no_discard_summary_kv` is set).
 
 ### Phase 2 - Query Processing and Token Generation
-
-<div align="center">
-  <img
-    src="images/star_attn_phase2.png"
-    alt="star attention phase 2"
-  />
-</div>
-<br />
 
 - Designate one host as the *query* host $h_q$.
 - Replicate the query tokens to all the hosts where each host first attends to its locally stored KV cache from phase 1.
