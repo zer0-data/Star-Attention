@@ -167,10 +167,34 @@ def main(args):
     if rank == 0:
         print(f"Timing {len(input_data)} samples...\n")
 
+    import torch
+    import torch.distributed as dist_mod
+
+    def _peak_mem_gb_this_rank() -> float:
+        """Peak allocated memory (GB) on this rank's primary device."""
+        if not torch.cuda.is_available():
+            return 0.0
+        dev = torch.cuda.current_device()
+        return torch.cuda.max_memory_allocated(dev) / 1024 ** 3
+
+    def _all_devices_mem_gb() -> tuple:
+        """For single-process (dense) mode: sum + max across ALL visible CUDA devices."""
+        n = torch.cuda.device_count()
+        per_dev = [torch.cuda.max_memory_allocated(i) / 1024 ** 3 for i in range(n)]
+        return sum(per_dev), max(per_dev), per_dev
+
+    # Reset peak stats before timed loop (post-warmup baseline)
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+
     sample_times: List[float] = []
+    sample_peak_mem: List[float] = []   # peak per-GPU (this rank) per sample
     total_start = time.perf_counter()
 
     for i, sample in enumerate(input_data):
+        if torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats()
+
         t0 = time.perf_counter()
         model(
             prompt_context=sample["input_context"],
@@ -178,13 +202,31 @@ def main(args):
         )
         dist.barrier()
         elapsed = time.perf_counter() - t0
+        peak_this = _peak_mem_gb_this_rank()
 
         if rank == 0:
             sample_times.append(elapsed)
+            sample_peak_mem.append(peak_this)
             label = sample.get("index", i)
-            print(f"  sample {i:>2} (idx={label}): {elapsed:.2f}s")
+            print(f"  sample {i:>2} (idx={label}): {elapsed:.2f}s  peak={peak_this:.2f}GB")
 
     total_elapsed = time.perf_counter() - total_start
+
+    # Gather per-rank peak memory at rank 0 for distributed runs
+    # Each rank sends its max peak across all samples
+    rank_max_peak = max(sample_peak_mem) if sample_peak_mem else 0.0
+    if dist.is_initialized() and dist.get_world_size() > 1:
+        peak_tensor = torch.tensor([rank_max_peak], dtype=torch.float32)
+        all_peaks = [torch.zeros(1) for _ in range(dist.get_world_size())]
+        dist.gather(peak_tensor, all_peaks if rank == 0 else None, dst=0)
+        if rank == 0:
+            per_rank_peaks = [t.item() for t in all_peaks]
+        else:
+            per_rank_peaks = []
+    else:
+        # Dense / single-process: enumerate all CUDA devices directly
+        _, _, per_dev = _all_devices_mem_gb()
+        per_rank_peaks = per_dev
 
     if rank == 0:
         mean_t = sum(sample_times) / len(sample_times)
@@ -196,8 +238,12 @@ def main(args):
             else (sorted_t[mid - 1] + sorted_t[mid]) / 2
         )
         seq_len = os.path.basename(args.input_path).replace("timing_", "").replace(".jsonl", "")
+
+        peak_per_gpu = max(per_rank_peaks) if per_rank_peaks else 0.0
+        peak_total   = sum(per_rank_peaks) if per_rank_peaks else 0.0
+
         print()
-        print("=" * 50)
+        print("=" * 55)
         print(f"  attn_type      : {args.attn_type}")
         if args.attn_type == "star":
             print(f"  block_size     : {args.block_size}")
@@ -211,7 +257,10 @@ def main(args):
         print(f"  mean / sample  : {mean_t:.2f}s")
         print(f"  median/ sample : {median_t:.2f}s")
         print(f"  min / max      : {min(sorted_t):.2f}s / {max(sorted_t):.2f}s")
-        print("=" * 50)
+        print(f"  peak / GPU     : {peak_per_gpu:.2f} GB  (max across ranks)")
+        print(f"  peak total     : {peak_total:.2f} GB  (sum across ranks)")
+        print(f"  per-rank peaks : {[f'{p:.2f}' for p in per_rank_peaks]} GB")
+        print("=" * 55)
 
         if args.output_file:
             import datetime
@@ -232,7 +281,9 @@ def main(args):
                 f"median={median_t:.3f}s | "
                 f"min={min(sorted_t):.3f}s | "
                 f"max={max(sorted_t):.3f}s | "
-                f"total={total_elapsed:.1f}s\n"
+                f"total={total_elapsed:.1f}s | "
+                f"peak_per_gpu={peak_per_gpu:.3f}GB | "
+                f"peak_total={peak_total:.3f}GB\n"
             )
             os.makedirs(os.path.dirname(os.path.abspath(args.output_file)), exist_ok=True)
             with open(args.output_file, "a", encoding="utf-8") as f:
