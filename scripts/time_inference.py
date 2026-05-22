@@ -195,22 +195,49 @@ def main(args):
             if len(sorted_t) % 2 == 1
             else (sorted_t[mid - 1] + sorted_t[mid]) / 2
         )
+        seq_len = os.path.basename(args.input_path).replace("timing_", "").replace(".jsonl", "")
         print()
         print("=" * 50)
         print(f"  attn_type      : {args.attn_type}")
         if args.attn_type == "star":
             print(f"  block_size     : {args.block_size}")
-            print(f"  anchor_block   : {args.anchor_block_size}")
             print(f"  summary_method : {args.summary_method}")
             print(f"  summary_chunks : {args.summary_chunks}")
             print(f"  chunk_size     : {args.chunk_size}")
             print(f"  sink_size      : {args.sink_size}")
+        print(f"  seq_len        : {seq_len}")
         print(f"  samples        : {len(sample_times)}")
         print(f"  total wall     : {total_elapsed:.1f}s")
         print(f"  mean / sample  : {mean_t:.2f}s")
         print(f"  median/ sample : {median_t:.2f}s")
         print(f"  min / max      : {min(sorted_t):.2f}s / {max(sorted_t):.2f}s")
         print("=" * 50)
+
+        if args.output_file:
+            import datetime
+            method_tag = (
+                args.summary_method if args.attn_type == "star" else args.attn_type
+            )
+            line = (
+                f"{datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')} | "
+                f"seq={seq_len} | "
+                f"attn={args.attn_type} | "
+                f"method={method_tag} | "
+                f"block_size={args.block_size} | "
+                f"summary_chunks={args.summary_chunks} | "
+                f"chunk_size={args.chunk_size} | "
+                f"sink_size={args.sink_size} | "
+                f"n={len(sample_times)} | "
+                f"mean={mean_t:.3f}s | "
+                f"median={median_t:.3f}s | "
+                f"min={min(sorted_t):.3f}s | "
+                f"max={max(sorted_t):.3f}s | "
+                f"total={total_elapsed:.1f}s\n"
+            )
+            os.makedirs(os.path.dirname(os.path.abspath(args.output_file)), exist_ok=True)
+            with open(args.output_file, "a", encoding="utf-8") as f:
+                f.write(line)
+            print(f"\n  Results appended to: {args.output_file}")
 
     dist.barrier()
     dist.destroy_process_group()
@@ -265,6 +292,13 @@ if __name__ == "__main__":
         type=int,
         default=3,
         help="Repeat sample[0] this many times before timing starts.",
+    )
+
+    # Output
+    parser.add_argument(
+        "--output_file",
+        default=None,
+        help="Path to append one structured result line per run (e.g. results/timing.txt).",
     )
 
     args = parser.parse_args()
