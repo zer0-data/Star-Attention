@@ -236,8 +236,18 @@ def run_cell(
     if not preds:
         return
 
-    score = metric_fn(preds, refs)
-    n_null = sum(1 for p in preds if len(p) == 0)
+    # Filter out samples with empty refs (some RULER tasks — e.g. cwe — can
+    # emit samples with outputs=[], which would crash metric_fn on len(ref)).
+    filtered = [(p, r) for p, r in zip(preds, refs) if r]
+    n_skipped = len(preds) - len(filtered)
+    if n_skipped:
+        print(f"    [warn] skipping {n_skipped} sample(s) with empty refs")
+    if not filtered:
+        print(f"    [warn] no scorable samples; skipping cell")
+        return
+    preds_s, refs_s = zip(*filtered)
+    score = metric_fn(list(preds_s), list(refs_s))
+    n_null = sum(1 for p in preds_s if len(p) == 0)
     print(
         f"    === seq={seq_length}/{task}/{method}/chunks={summary_chunks}: "
         f"score={score:.2f} ({n_null} nulls / {len(preds)}) ==="

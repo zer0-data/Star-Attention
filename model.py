@@ -305,6 +305,13 @@ class DistributedInferenceBaseModel:
             ModelClass = Qwen3ForCausalLM
         else:
             from star_attention import LlamaForCausalLM
+            if LlamaForCausalLM is None:
+                raise ImportError(
+                    "LlamaForCausalLM is not available: star_attention/modeling_llama.py "
+                    "requires transformers==4.44.x, but a newer version is installed "
+                    "(transformers >=4.46 removed LlamaFlashAttention2). "
+                    "To use Llama models, pin transformers==4.44.0."
+                )
             ModelClass = LlamaForCausalLM
 
         # Define the model

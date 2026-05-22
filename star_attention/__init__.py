@@ -13,5 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .modeling_llama import LlamaForCausalLM
+try:
+    from .modeling_llama import LlamaForCausalLM
+except (ImportError, AttributeError):
+    # transformers >=4.46 removed LlamaFlashAttention2 as a standalone class.
+    # modeling_llama.py was written against 4.44.x and is incompatible with
+    # newer versions. Qwen3 (requires >=4.51) cannot coexist with the old
+    # Llama file on the same install. Llama models need transformers==4.44.x.
+    LlamaForCausalLM = None
+
 from .modeling_qwen3 import Qwen3ForCausalLM
