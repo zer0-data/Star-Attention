@@ -22,4 +22,9 @@ except (ImportError, AttributeError):
     # Llama file on the same install. Llama models need transformers==4.44.x.
     LlamaForCausalLM = None
 
-from .modeling_qwen3 import Qwen3ForCausalLM
+try:
+    from .modeling_qwen3 import Qwen3ForCausalLM
+except (ImportError, AttributeError):
+    # transformers.models.qwen3 requires transformers>=4.51.
+    # Older installs (e.g. 4.44.x) don't have it; skip silently.
+    Qwen3ForCausalLM = None
