@@ -218,8 +218,8 @@ def main(args):
     if dist.is_initialized() and dist.get_world_size() > 1:
         device = torch.device(f"cuda:{torch.cuda.current_device()}")
         peak_tensor = torch.tensor([rank_max_peak], dtype=torch.float32, device=device)
-        all_peaks = [torch.zeros(1, device=device) for _ in range(dist.get_world_size())]
-        dist.gather(peak_tensor, all_peaks if rank == 0 else None, dst=0)
+        all_peaks = [torch.zeros(1, dtype=torch.float32, device=device) for _ in range(dist.get_world_size())]
+        dist.all_gather(all_peaks, peak_tensor)  # all_gather is NCCL-supported; gather is not
         if rank == 0:
             per_rank_peaks = [t.item() for t in all_peaks]
         else:
