@@ -203,10 +203,10 @@ def main(args):
         dist.barrier()
         elapsed = time.perf_counter() - t0
         peak_this = _peak_mem_gb_this_rank()
+        sample_peak_mem.append(peak_this)  # all ranks track their own peak
 
         if rank == 0:
             sample_times.append(elapsed)
-            sample_peak_mem.append(peak_this)
             label = sample.get("index", i)
             print(f"  sample {i:>2} (idx={label}): {elapsed:.2f}s  peak={peak_this:.2f}GB")
 
