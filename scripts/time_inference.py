@@ -216,12 +216,18 @@ def main(args):
     # Each rank sends its max peak across all samples
     rank_max_peak = max(sample_peak_mem) if sample_peak_mem else 0.0
     if dist.is_initialized() and dist.get_world_size() > 1:
-        device = torch.device(f"cuda:{torch.cuda.current_device()}")
-        peak_tensor = torch.tensor([rank_max_peak], dtype=torch.float32, device=device)
-        all_peaks = [torch.zeros(1, dtype=torch.float32, device=device) for _ in range(dist.get_world_size())]
-        dist.all_gather(all_peaks, peak_tensor)  # all_gather is NCCL-supported; gather is not
+        # Use all_reduce on a world_size slot tensor — avoids gather/all_gather
+        # device context issues. Each rank writes its value into its own slot,
+        # SUM collapses to the actual per-rank value since all other slots are 0.
+        ws = dist.get_world_size()
+        model_device = next(iter(
+            {p.device for p in model.model.parameters() if p.device.type == "cuda"}
+        ), torch.device("cuda:0"))
+        peaks_all = torch.zeros(ws, dtype=torch.float32, device=model_device)
+        peaks_all[rank] = rank_max_peak
+        dist.all_reduce(peaks_all, op=dist.ReduceOp.SUM)
         if rank == 0:
-            per_rank_peaks = [t.item() for t in all_peaks]
+            per_rank_peaks = peaks_all.tolist()
         else:
             per_rank_peaks = []
     else:
