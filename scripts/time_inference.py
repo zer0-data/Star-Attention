@@ -321,7 +321,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--summary_method",
         default="tfidf",
-        choices=["tfidf", "bm25", "entropy", "max_idf", "evenly_spaced", "mean_pool"],
+        choices=["anchor", "tfidf", "bm25", "entropy", "max_idf", "evenly_spaced", "mean_pool"],
     )
     parser.add_argument("--summary_chunks", type=int, default=4)
     parser.add_argument("--chunk_size", type=int, default=32)
