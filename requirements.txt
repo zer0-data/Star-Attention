@@ -2,7 +2,7 @@
 torch==2.3.1
 torchaudio==2.3.1
 torchvision==0.18.1
-transformers>=4.51.0
+transformers==4.44.3  # 4.44.x required for Llama; >=4.51 needed only for Qwen3
 accelerate>=0.30.0
 flash-attn==2.6.3
 tqdm
