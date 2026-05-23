@@ -216,8 +216,9 @@ def main(args):
     # Each rank sends its max peak across all samples
     rank_max_peak = max(sample_peak_mem) if sample_peak_mem else 0.0
     if dist.is_initialized() and dist.get_world_size() > 1:
-        peak_tensor = torch.tensor([rank_max_peak], dtype=torch.float32)
-        all_peaks = [torch.zeros(1) for _ in range(dist.get_world_size())]
+        device = torch.device(f"cuda:{torch.cuda.current_device()}")
+        peak_tensor = torch.tensor([rank_max_peak], dtype=torch.float32, device=device)
+        all_peaks = [torch.zeros(1, device=device) for _ in range(dist.get_world_size())]
         dist.gather(peak_tensor, all_peaks if rank == 0 else None, dst=0)
         if rank == 0:
             per_rank_peaks = [t.item() for t in all_peaks]
