@@ -26,20 +26,20 @@ Per-sample times are printed + a summary table at the end.
 Example (dense, 1 GPU):
   torchrun --nproc_per_node=1 scripts/time_inference.py \\
       --model_path /model --attn_type dense \\
-      --prompt_config meta-llama3 \\
+      --prompt_config llama3 \\
       --input_path /data/timing_64k.jsonl
 
 Example (star anchor, 4 GPUs):
   torchrun --nproc_per_node=4 scripts/time_inference.py \\
       --model_path /model --attn_type star \\
-      --prompt_config meta-llama3 \\
+      --prompt_config llama3 \\
       --block_size 16384 --anchor_block_size 16384 --summary_chunks 0 \\
       --input_path /data/timing_64k.jsonl
 
 Example (statistical max_idf, 4 GPUs):
   torchrun --nproc_per_node=4 scripts/time_inference.py \\
       --model_path /model --attn_type star \\
-      --prompt_config meta-llama3 \\
+      --prompt_config llama3 \\
       --block_size 16384 --anchor_block_size -1 \\
       --summary_method max_idf --summary_chunks 4 --chunk_size 32 --sink_size 64 \\
       --input_path /data/timing_64k.jsonl

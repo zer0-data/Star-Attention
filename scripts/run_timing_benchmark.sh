@@ -26,7 +26,7 @@ OUTPUT_DIR=${2:-"results/timing"}
 RESULTS_FILE="$OUTPUT_DIR/timing_results.txt"
 LOG_DIR="$OUTPUT_DIR/logs"
 DATA_DIR="dataset/timing"
-PROMPT_CFG="meta-llama3"
+PROMPT_CFG="llama3"
 WARMUP=3
 
 mkdir -p "$LOG_DIR"
